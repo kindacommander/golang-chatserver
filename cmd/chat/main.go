@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	listener, err := net.Listen("tcp", "localhost:8000")
+	listener, err := net.Listen("tcp", "0.0.0.0:8000")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -68,9 +68,9 @@ func handleConn(conn net.Conn) {
 	ch := make(chan string) // Client's outbound channel
 	go clientWriter(conn, ch)
 
-	who := conn.RemoteAddr().String()
+	who := enterUsername(conn)
 	ch <- "You are " + who
-	messages <- who + " connected"
+	messages <- "\n" + who + " connected"
 	entering <- client{ch, who}
 
 	input := bufio.NewScanner(conn)
@@ -80,7 +80,7 @@ func handleConn(conn net.Conn) {
 	// Ignoring potential input.Err()
 
 	leaving <- client{ch, who}
-	messages <- who + " disconnected"
+	messages <- "\n" + who + " disconnected"
 	conn.Close()
 }
 
@@ -88,4 +88,25 @@ func clientWriter(conn net.Conn, ch <-chan string) {
 	for msg := range ch {
 		fmt.Fprintln(conn, msg) // Ignoring network errors
 	}
+}
+
+func enterUsername(conn net.Conn) string {
+	var username string
+	scanner := bufio.NewScanner(conn)
+	const maxLen = 15
+loop:
+	for {
+		fmt.Fprint(conn, "Enter your username: ")
+		for scanner.Scan() {
+			if text := scanner.Text(); len(text) < 1 || len(text) > maxLen {
+				fmt.Fprintln(conn, "Username length must be 1-15.")
+				break
+			} else {
+				username = text
+				break loop
+			}
+		}
+	}
+
+	return username
 }
